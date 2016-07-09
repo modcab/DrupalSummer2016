@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html xmlns="http://www.w3.org/1999/html">
 	<head>
 		<meta charset="utf-8">
 		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -24,54 +24,397 @@
 	</head>
 	<body>
 		<div class="reveal">
-			<div class="slides">
+			<div class="slides" data-background-image="img/slide-interior.jpg">
 				<section class="cover" data-background-image="img/slide-interior.jpg">
 					<h1>Migrations in Drupal 8</h1>
 					<h4>by Modesto Caballero</h4>
 				</section>
 				<section data-background-image="img/slide-interior.jpg">
-					<h1>Who am I?</h1>
+					<h2>Who am I?</h2>
 					<ul>
 						<li>A freelance drupal developer in the UK</li>
-						<li>A father of two</li>
-						<li>A person</li>
+						<li>Almost 10 years working with Drupal</li>
 					</ul>
-				</section>
-				<section>
-					<h2>Hello There</h2>
-					<p>
-						reveal.js enables you to create beautiful interactive slide decks using HTML. This presentation will show you examples of what it can do.
-					</p>
-				</section>
-				<section class="underlined" data-background-image="img/slide-interior.jpg">
-					<h3>This is a very important concept and it's rather long, wait for it</h3>
+					<img src="img/DSC_0353.jpg" width="600">
 				</section>
 				<section data-background-image="img/slide-interior.jpg">
+					<h2>How do I create a migration?</h2>
+					<ul>
+						<li>Configuration entity</li>
+						<li>YAML file in <i>config/install</i> directory in your module</li>
+						<li>Naming convention: migrate_plus.migration.MIGRATION_NAME.yml</li>
+					</ul>
+				</section>
+				<section data-background-image="img/slide-interior.jpg">
+					<h1>What's a migration?</h1>
+					<ul>
+						<li>Source</li>
+						<li>Process</li>
+						<li>Destination</li>
+					</ul>
+				</section>
+				<!--Source-->
+				<section data-background-image="img/slide-interior.jpg">
+				<section data-background-image="img/slide-interior.jpg">
+					<h1>Source</h1>
+				</section>
+				<section data-background-image="img/slide-interior.jpg">
+					<h1>Source</h1>
+					<ul>
+						<li>Where the data comes from</li>
+						<li>Will generate rows, which will become new elements in our site</li>
+					</ul>
+				</section>
+				<section data-background-image="img/slide-interior.jpg">
+					<h2>Source</h2>
+					<ul>
+						<li>The migration configuration entity always contains a source key.</li>
+						<li>Contains name of the plugin and configuration</li>
+						<li>Only the plugin key-value pair is mandatory, some plugins might not have any configurations.</li>
+					</ul>
+						<pre><code>
+  source:
+	plugin: SOME_PLUGIN
+	# Enable "track changes" feature.
+	track_changes: true
+						</code></pre>
+					</section>
 					<section data-background-image="img/slide-interior.jpg">
-						<h1>What's a migration?</h1>
+						<h1>Source - SQL</h1>
 						<ul>
-							<li>ID</li>
-							<li>Source</li>
-							<li>Process</li>
-							<li>Destination</li>
+							<li>The data is extracted via the DBTNG API.</li>
+							<li>Requires the creation of a custom plugin, to specify the SQL query to use, .</li>
 						</ul>
+												<pre><code>
+  source:
+    plugin: movies
+    key: default
+												</code></pre>
+
 					</section>
 					<section data-background-image="img/slide-interior.jpg">
-						<h1>ID</h1>
-						<p>A name for the migration</p>
+						<h1>Source - SQL</h1>
+						<h2>Example of custom plugin</h2>
+						<pre><code>
+<?php
+
+namespace Drupal\director\Plugin\migrate\source;
+
+use Drupal\migrate\Plugin\migrate\source\SqlBase;
+use Drupal\migrate\Row;
+
+/**
+ * Source plugin for the movies.
+ *
+ * @MigrateSource(
+ *   id = "movies"
+ * )
+ */
+class Movies extends SqlBase {
+
+  /**
+   * {@inheritdoc}
+   */
+  public function query() {
+    $query = $this->select('movies', 'd')
+      ->fields('d', ['id', 'name', 'description']);
+    return $query;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function fields() {
+    $fields = [
+      'id' => $this->t('Movie ID'),
+      'name' => $this->t('Movie Name'),
+      'description' => $this->t('Movie Description'),
+      'genres' => $this->t('Movie Genres'),
+    ];
+
+    return $fields;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function getIds() {
+    return [
+      'id' => [
+        'type' => 'integer',
+        'alias' => 'd',
+      ],
+    ];
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  public function prepareRow(Row $row) {
+    $genres = $this->select('movies_genres', 'g')
+      ->fields('g', ['id'])
+      ->condition('movie_id', $row->getSourceProperty('id'))
+      ->execute()
+      ->fetchCol();
+    $row->setSourceProperty('genres', $genres);
+    return parent::prepareRow($row);
+  }
+}
+						</code></pre>
+						<p><small>https://www.sitepoint.com/your-first-drupal-8-migration/</small><p>
 					</section>
 					<section data-background-image="img/slide-interior.jpg">
-						<h1>Source</h1>
-						<p>Where the data comes from</p>
+						<h2>Source - XML & JSON</h2>
+						<ul>
+							<li>Provided by the Migrate Plus module.</li>
+						</ul>
+												<pre><code>
+source:
+  # We use the JSON source plugin.
+  plugin: url
+  data_fetcher_plugin: http
+  data_parser_plugin: json
+  # Normally, this is one or more fully-qualified URLs or file paths. Because
+  # we can't hardcode your local URL, we provide a relative path here which
+  # hook_install() will rewrite to a full URL for the current site.
+  urls: /migrate_example_advanced_position?_format=json
+  item_selector: 1
+  # Under 'fields', we list the data items to be imported. The first level keys
+  # are the source field names we want to populate (the names to be used as
+  # sources in the process configuration below). For each field we're importing,
+  # we provide a label (optional - this is for display in migration tools) and
+  # an xpath for retrieving that value. It's important to note that this xpath
+  # is relative to the elements retrieved by item_xpath.
+  fields:
+    -
+      name: machine_name
+      label: 'Unique position identifier'
+      selector: sourceid
+    -
+      name: friendly_name
+      label: 'Position name'
+      selector: name
+  # Under 'ids', we identify source fields populated above which will uniquely
+  # identify each imported item. The 'type' makes sure the migration map table
+  # uses the proper schema type for stored the IDs.
+  ids:
+    machine_name:
+      type: string
+	</code></pre>
+<p><small>from migrate_example_advanced</small></p>
 					</section>
+					<section data-background-image="img/slide-interior.jpg">
+						<h2>Source - CSV</h2>
+						<ul>
+							<li>Provided by the Migrate Source CSV module.</li>
+						</ul>
+												<pre><code>
+source:
+  plugin: csv
+  # Full path to the file.
+  path: public://csv/people.csv
+  # The number of rows at the beginning which are not data.
+  header_row_count: 1
+  # These are the field names from the source file representing the key
+  # uniquely identifying each game - they will be stored in the migration
+  # map table as columns sourceid1, sourceid2, and sourceid3.
+  keys:
+    - id
+  # Here we identify the columns of interest in the source file. Each numeric
+  # key is the 0-based index of the column. For each column, the key below
+  # (e.g., "start_date") is the field name assigned to the data on import, to
+  # be used in field mappings below. The value is a user-friendly string for
+  # display by the migration UI.
+  column_names:
+    # So, here we're saying that the first field (index 0) on each line will
+    # be stored in the start_date field in the Row object during migration, and
+    # that name can be used to map the value below. "Date of game" will appear
+    # in the UI to describe this field.
+    0:
+      id: Identifier
+    1:
+      first_name: First Name
+    2:
+      last_name: Last Name
+    3:
+      email: Email Address
+    4:
+      country: Country
+    5:
+      ip_address: IP Address
+	</code></pre>
+<p><small>https://www.drupal.org/project/migrate_source_csv</small></p>
+					</section>
+
+				</section>
+<!--Process-->
+				<section data-background-image="img/slide-interior.jpg">
 					<section data-background-image="img/slide-interior.jpg">
 						<h1>Process</h1>
-						<p>Modifications to the original data, if needed.</p>
+						<p>Describes, property-by-property, how the destination is to be constructed from the source data.</p>
+						<p><small>https://www.drupal.org/node/2129651</small></p>
 					</section>
 					<section data-background-image="img/slide-interior.jpg">
-						<h1>Destination</h1>
-						<p>The data is finally stored in our new website.</p>
+						<h2>Process</h2>
+						<ul>
+							<li> An associative array</li>
+							<li> Each key is a destination property</li>
+							<li> The values associated with each key describe how the destination value is created.</li>
+						</ul>
+
+						<p><small>https://www.drupal.org/node/2129651</small></p>
 					</section>
+					<section data-background-image="img/slide-interior.jpg">
+						<h2>Process</h2>
+											<pre><code>
+process:
+  # The content (node) type we are creating is 'people'.
+  type:
+    plugin: default_value
+    default_value: people
+  # Most fields can be mapped directly - we just specify the destination (D8)
+  # field and the corresponding field name from above, and the values will be
+  # copied in.
+  title: first_last
+  field_first_name: first_name
+  field_last_name: last_name
+  field_email: email
+  field_country: country
+  field_ip_address: ip_address
+
+											</code></pre>
+
+						<p><small>https://www.drupal.org/node/2129651</small></p>
+					</section>
+					<section data-background-image="img/slide-interior.jpg">
+						<h2>Process - Shorthand</h2>
+						<p>The get plugin</p>
+						<ul>
+							<li>Copies a value from a source property.</li>
+							<li>It can be used without being explicitly named. </li>
+						</ul>
+						<pre><code>
+process:
+  title: subject
+						</code></pre>
+					</section>
+					<section data-background-image="img/slide-interior.jpg">
+						<h2>Process - The full pipeline</h2>
+						<p>Sometimes, a source value must pass through multiple plugins to end up with the right value and structure for the destination property.</p>
+						<pre><code>
+process:
+    format:
+        -
+            plugin: machine_name
+            source: name
+        -
+            plugin: dedupe_entity
+            entity_type: filter_format
+            field: format						</code></pre>
+					</section>
+
+				</section>
+
+				<section data-background-image="img/slide-interior.jpg">
+					<section data-background-image="img/slide-interior.jpg">
+						<h1>Process - Plugins</h1>
+						<p>Some examples.</p>
+					</section>
+					<section data-background-image="img/slide-interior.jpg">
+						<h2>Plugins - Constants</h2>
+					<pre><code>
+source:
+  constants:
+    id: node_search
+process:
+  id: constants/id
+					</code></pre>
+						<p><small>https://www.drupal.org/node/2171833</small></p>
+					</section>
+					<section data-background-image="img/slide-interior.jpg">
+						<h2>Plugins - Callback</h2>
+						<ul>
+							<li>This plugin allows source value to be passed to a callable that returns the processed value.</li>
+							<li>The callable takes the source value as the single mandatory argument.</li>
+							<li>No more arguments allowed.</li>
+						</ul>
+					<pre><code>
+process:
+  destination_field:
+    -
+      plugin: callback
+      callable: strtolower
+      source: source_field					</code></pre>
+						<p><small>https://www.drupal.org/node/2171833</small></p>
+					</section>
+					<section data-background-image="img/slide-interior.jpg">
+						<h2>Plugins - Concat</h2>
+						<ul>
+							<li>The concat plugin is used to concatenate strings in the source.</li>
+							<li>You can also specify a delimiter.</li>
+						</ul>
+					<pre><code>
+process:
+  new_text_field:
+    plugin: concat
+    source:
+      - foo
+      - bar
+    delimiter: /					</code></pre>
+						<p><small>https://www.drupal.org/node/2345927</small></p>
+					</section>
+					<section data-background-image="img/slide-interior.jpg">
+						<h2>Plugins - default_value</h2>
+						<ul>
+							<li>The default_value plugin provides the ability to set a fixed default value.</li>
+							<li>The plugin sets the pipeline to the default value if the pipeline has no value </li>
+						</ul>
+					<pre><code>
+process:
+    uid:
+        -
+            plugin: migration
+            migration: users
+            source: author
+        -
+            plugin: default_value
+            default_value: 44
+					</code></pre>
+						<p><small>https://www.drupal.org/node/2135313</small></p>
+					</section>
+					<section data-background-image="img/slide-interior.jpg">
+						<h2>Plugins - migration</h2>
+						<ul>
+							<li>To maintain relationships among content coming from the source site.
+							<li>Using the final IDs in the destination site.</li>
+						</ul>
+					<pre><code>
+process:
+    uid:
+        -
+            plugin: migration
+            migration: users
+            source: author
+        -
+            plugin: default_value
+            default_value: 44
+					</code></pre>
+						<p><small>https://www.drupal.org/node/2135313</small></p>
+					</section>
+				</section>
+				<section data-background-image="img/slide-interior.jpg">
+					<h1>Destination</h1>
+					<p>The data is finally stored in our new website, usually in entities</p>
+										<pre><code>
+destination:
+  plugin: entity:node
+										</code></pre>
+
+				</section>
+				<section data-background-image="img/slide-interior.jpg">
+					<h1>Destination</h1>
+					<p>Some other examples of possible values</p>
+					<p><small>blocked_ip, book, component_entity_display, component_entity_form_display, config, entity:base_field_override, entity:block, entity:comment, entity:comment_type, entity:date_format, entity:entity_view_mode, entity:field_config, entity:field_storage_config, entity:file, entity:image_style, entity:node_type, entity_revision,, entity:search_page, entity:shortcut_set, entity:user, md_entity:field_storage_config, shortcut_set_users, url_alias, user_data, </small></p>
 				</section>
 				<section data-background-image="img/slide-interior.jpg">
 					<section data-background-image="img/slide-interior.jpg">
@@ -88,14 +431,47 @@
 				</section>
 
 				<section data-background-image="img/slide-interior.jpg">
-					<h1>Migrate tools</h1>
+					<h2>Migrating from an existing Drupal 6 or 7 site</h2>
+					<ul>
+						<li>drupal_migrate and drupal_migrate_ui</li>
+						<li>Provides a UI for migrating content and config</li>
+						<li>Demo at the end of the session</li>
+					</ul>
+				</section>
+
+				<section data-background-image="img/slide-interior.jpg">
+					<h1>Migrate plus</h1>
+					<ul>
+						<li>
+							<strong>migrate_plus</strong> - Extends the core migration framework with additional functionality.
+							<ul>
+								<li><strong>MigrationGroup</strong> configuration entity for grouping migrations,
+								<li><strong>PREPARE_ROW</strong> event to respond to and manipulate incoming source data</li>
+								<li>a <strong>"url"</strong> source plugin supporting migration from XML and JSON sources</li></ul>
+						</li>
+						<li><strong>migrate_example</strong> and <strong>migrate_example_advanced</strong> (still in progress)</li>
+					</ul>
+					<p><small>https://www.drupal.org/project/migrate_plus</small><p>
 				</section>
 				<section data-background-image="img/slide-interior.jpg">
-					<h1>References</h1>
+					<h1>Migrate tools</h1>
+					<p>Provides tools for running and managing Drupal 8 migrations.</p>
+					<p><small>https://www.drupal.org/project/migrate_tools</small><p>
+				</section>
+				<section data-background-image="img/slide-interior.jpg">
+					<h1>Migrate tools</h1>
+					<p>Drush commands supported include:</p>
 					<ul>
-						<li>Drupal 8 docummentation: https://www.drupal.org/node/2127611</li>
-						<li>Description of item 2: http://bit.ly/item2</li>
+						<li><strong>migrate-status</strong> - Lists migrations and their status</li>
+						<li><strong>migrate-import</strong> - Performs import operations</li>
+						<li><strong>migrate-rollback</strong> - Performs rollback operations</li>
+						<li><strong>migrate-stop</strong> - Cleanly stops a running operation</li>
+						<li><strong>migrate-reset-status</strong> - Sets a migration status to Idle if it's gotten stuck</li>
+						<li><strong>migrate-messages</strong> - Lists any messages associated with a migration import</li>
 					</ul>
+				</section>
+				<section data-background-image="img/slide-interior.jpg">
+					<h1>Any questions?</h1>
 				</section>
 			</div>
 		</div>
